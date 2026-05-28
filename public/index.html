@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/public/styles.css">
+  <link rel="icon" href="/public/favicon.ico" type="image/x-icon" />
+  <script src="/utils/constants.js"></script>
+  <title>Game Room Lobby</title>
+</head>
+
+<body>
+  <div class="arcade-container">
+    <h2 class="arcade-title">🕹️ Game Room Lobby 🕹️</h2>
+
+    <!-- Animated join banner -->
+    <div id="joinBanner" class="join-banner hidden"></div>
+
+    <!-- Chat window -->
+    <div class="chat-window">
+      <div class="chat"></div>
+    </div>
+
+    <!-- Message input -->
+    <form id="messageForm" class="input-area">
+      <input 
+        type="text" 
+        id="messageBox" 
+        placeholder="Type to begin..." 
+        autocomplete="off"
+      />
+      <button id="send" title="Send">➤</button>
+    </form>
+  </div>
+
+  <script>
+    ////////////////////////////////////////////////
+    ////////////// VARIABLES ///////////////////////
+    ////////////////////////////////////////////////
+
+    let wsClient;
+
+    // Generate username + avatar color
+    function randomAvatarColor() {
+      const colors = ["#39ff14", "#ff00c8", "#00eaff", "#ffea00", "#ff6b00"];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    const username = "Player" + Math.floor(Math.random() * 9999);
+    const avatarColor = randomAvatarColor();
+
+    ////////////////////////////////////////////////
+    //////////////// DOM SETUP /////////////////////
+    ////////////////////////////////////////////////
+
+    const messageBox = document.querySelector('#messageBox');
+    const messageForm = document.querySelector('#messageForm');
+    const messages = document.querySelector('.chat');
+    const joinBanner = document.getElementById("joinBanner");
+
+    messageForm.onsubmit = function(e) {
+      e.preventDefault();
+      const message = messageBox.value;
+      showMessageSent(message, username, avatarColor);
+      messageBox.value = '';
+      sendMessageToServer(message);
+    }
+
+    ////////////////////////////////////////////////
+    ////////////// WS CLIENT LOGIC /////////////////
+    ////////////////////////////////////////////////
+
+    function init() {
+      if (wsClient) {
+        wsClient.onerror = wsClient.onopen = wsClient.onclose = null;
+        wsClient.close();
+      }
+
+      const URL = 'ws://localhost:8080';
+      wsClient = new WebSocket(URL);
+
+      wsClient.onopen = () => {
+        wsClient.send(JSON.stringify({
+          type: 'NEW_USER',
+          payload: { username, color: avatarColor }
+        }));
+      };
+
+      wsClient.onmessage = (messageEvent) => {
+        const { type, payload } = JSON.parse(messageEvent.data);
+
+        switch (type) {
+          case 'NEW_USER':
+            showJoinBanner(payload.username);
+            showMessageReceived(`<em>${payload.username} joined!</em>`, payload.username, payload.color);
+            break;
+
+          case 'NEW_MESSAGE':
+            showMessageReceived(payload.message, payload.username, payload.color);
+            break;
+
+          default:
+            console.error('Unknown message type:', type);
+        }
+      };
+
+      wsClient.onclose = () => {
+        showMessageReceived('No WebSocket connection :(');
+        wsClient = null;
+      };
+
+      wsClient.onerror = (event) => {
+        console.error("WebSocket error:", event);
+        wsClient = null;
+      };
+    }
+
+    function sendMessageToServer(message) {
+      if (!wsClient) {
+        showMessageReceived('No WebSocket connection :(');
+        return;
+      }
+
+      wsClient.send(JSON.stringify({
+        type: 'NEW_MESSAGE',
+        payload: { 
+          message,
+          username,
+          color: avatarColor
+        }
+      }));
+    }
+
+    ////////////////////////////////////////////////
+    //////////// DOM HELPER FUNCTIONS //////////////
+    ////////////////////////////////////////////////
+
+    function showJoinBanner(name) {
+      joinBanner.textContent = `${name} joined the arcade!`;
+      joinBanner.classList.remove("hidden");
+
+      setTimeout(() => {
+        joinBanner.classList.add("hidden");
+      }, 2500);
+    }
+
+    function showMessageSent(message, user, color) { 
+      showNewMessage(message, 'sending', user, color); 
+    }
+
+    function showMessageReceived(message, user, color) {
+      showNewMessage(message, 'receiving', user, color); 
+    }
+
+    function showNewMessage(message, className, user, color) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "messages " + className;
+
+      const header = document.createElement("div");
+      header.className = "message-header";
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.style.background = color;
+
+      const nameTag = document.createElement("div");
+      nameTag.className = "username";
+      nameTag.textContent = user;
+
+      header.appendChild(avatar);
+      header.appendChild(nameTag);
+
+      const bubble = document.createElement("div");
+      bubble.className = "message";
+      bubble.innerHTML = message;
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(bubble);
+
+      messages.appendChild(wrapper);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    init();
+  </script>
+</body>
+</html>
