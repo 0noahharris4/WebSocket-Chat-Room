@@ -1,4 +1,3 @@
-const PORT = 8080;
 const CLIENT = {
   MESSAGE: {
     NEW_USER: 'NEW_USER',
@@ -6,11 +5,11 @@ const CLIENT = {
   }
 };
 
-// This check allows the module to be used in the client and the server
+// Export for server-side use
 if (typeof module !== "undefined" && module.exports) {
- module.exports = {
-  PORT: process.env.PORT || 8080,
-  CLIENT: ...
-};
-
+  module.exports = {
+    PORT: process.env.PORT || 8080,
+    CLIENT
+  };
 }
+
