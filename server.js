@@ -52,9 +52,8 @@ const server = http.createServer((req, res) => {
     return serveFile(res, path.join(__dirname, filePath));
   }
 
-  // Fallback: 404
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("404 Not Found");
+  // Fallback: ALWAYS serve index.html
+  return serveFile(res, path.join(__dirname, "public/index.html"));
 });
 
 // WebSocket server
@@ -97,6 +96,7 @@ function broadcast(message) {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
