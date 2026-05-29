@@ -63,12 +63,14 @@
     const joinBanner = document.getElementById("joinBanner");
 
     messageForm.onsubmit = function(e) {
-      e.preventDefault();
-      const message = messageBox.value;
-      showMessageSent(message, username, avatarColor);
-      messageBox.value = '';
-      sendMessageToServer(message);
-    }
+  e.preventDefault();
+  const message = messageBox.value.trim();
+  if (!message) return;
+
+  messageBox.value = '';
+  sendMessageToServer(message);
+}
+
 
     ////////////////////////////////////////////////
     ////////////// WS CLIENT LOGIC /////////////////
