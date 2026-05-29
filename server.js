@@ -1,74 +1,100 @@
-///////////////////////////////////////////////
-///////////// IMPORTS + VARIABLES /////////////
-///////////////////////////////////////////////
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const WebSocket = require("ws");
+const { PORT, CLIENT } = require("./utils/constants.js");
 
-const http = require('http'); 
-const CONSTANTS = require('./utils/constants.js');
-const fs = require('fs');
-const path = require('path');
-const WebSocket = require('ws');
-
-// You may choose to use the constants defined in the file below
-const { PORT, CLIENT } = CONSTANTS;
-
-///////////////////////////////////////////////
-///////////// HTTP SERVER LOGIC ///////////////
-///////////////////////////////////////////////
-
-// Create the HTTP server
+// Create HTTP server
 const server = http.createServer((req, res) => {
-  // get the file path from req.url, or '/public/index.html' if req.url is '/'
-  const filePath = ( req.url === '/' ) ? '/public/index.html' : req.url;
+  let filePath = req.url;
 
-  // determine the contentType by the file extension
-  const extname = path.extname(filePath);
-  let contentType = 'text/html';
-  if (extname === '.js') contentType = 'text/javascript';
-  else if (extname === '.css') contentType = 'text/css';
+  // Serve index.html for root
+  if (filePath === "/") {
+    filePath = "/public/index.html";
+  }
 
-  // pipe the proper file to the res object
-  res.writeHead(200, { 'Content-Type': contentType });
-  fs.createReadStream(`${__dirname}/${filePath}`, 'utf8').pipe(res);
+  // Special case: favicon.ico (Render requests this automatically)
+  if (filePath === "/favicon.ico") {
+    filePath = "/public/favicon.ico";
+  }
+
+  // Build absolute path
+  const absolutePath = path.join(__dirname, filePath);
+
+  // Determine MIME type
+  const ext = path.extname(absolutePath).toLowerCase();
+  const mimeTypes = {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "application/javascript",
+    ".ico": "image/x-icon",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml"
+  };
+
+  const contentType = mimeTypes[ext] || "application/octet-stream";
+
+  // Stream file safely
+  fs.createReadStream(absolutePath)
+    .on("error", () => {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("404 Not Found");
+    })
+    .on("open", () => {
+      res.writeHead(200, { "Content-Type": contentType });
+    })
+    .pipe(res);
 });
 
-///////////////////////////////////////////////
-////////////////// WS LOGIC ///////////////////
-///////////////////////////////////////////////
+// Create WebSocket server
+const wsServer = new WebSocket.Server({ server });
 
-// TODO
-// Exercise 3: Create the WebSocket Server using the HTTP server
-const wsServer = new WebSocket.Server({server});
+// Handle WebSocket connections
+wsServer.on("connection", (socket) => {
+  console.log("Client connected");
 
-// TODO
-// Exercise 5: Respond to connection events 
-  // Exercise 6: Respond to client messages
-  // Exercise 7: Send a message back to the client, echoing the message received
-  // Exercise 8: Broadcast messages received to all other clients
-  wsServer.on('connection', (socket) => {
-  console.log('new connection');
-  socket.on('message', (data) => {
-  console.log('message received: ' + data);
-  broadcast(data, socket);
-});
-});
+  socket.on("message", (data) => {
+    const msg = JSON.parse(data);
 
+    switch (msg.type) {
+      case CLIENT.MESSAGE.NEW_USER:
+        broadcast({
+          type: CLIENT.MESSAGE.NEW_USER,
+          payload: msg.payload
+        });
+        break;
 
-///////////////////////////////////////////////
-////////////// HELPER FUNCTIONS ///////////////
-///////////////////////////////////////////////
+      case CLIENT.MESSAGE.NEW_MESSAGE:
+        broadcast({
+          type: CLIENT.MESSAGE.NEW_MESSAGE,
+          payload: msg.payload
+        });
+        break;
 
-function broadcast(data, socketToOmit) {
-  wsServer.clients.forEach(connectedClient => {
-    if (connectedClient.readyState === WebSocket.OPEN && connectedClient !== socketToOmit) {
-      connectedClient.send(data);
+      default:
+        console.log("Unknown message type:", msg.type);
     }
-  })
-  // TODO
-  // Exercise 8: Implement the broadcast pattern. Exclude the emitting socket!
+  });
+
+  socket.on("close", () => {
+    console.log("Client disconnected");
+  });
+});
+
+// Broadcast helper
+function broadcast(message) {
+  wsServer.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
+    }
+  });
 }
 
-// Start the server listening on localhost:8080
+// Start server
 server.listen(PORT, () => {
-  console.log(`Listening on: http://localhost:${server.address().port}`);
+  console.log(`Server running on port ${PORT}`);
 });
+
 
